@@ -40,7 +40,7 @@ def log_query(
     Returns True on success, False on failure.
     """
     try:
-        _supabase.table("query_logs").insert({
+        _get_client().table("query_logs").insert({
             "query_text": query_text,
             "response_text": response_text,
             "sources_used": sources_used,
@@ -70,7 +70,7 @@ def get_metrics_summary() -> dict:
     """
     try:
         # Fetch all query logs
-        result = _supabase.table("query_logs").select(
+        result = _get_client().table("query_logs").select(
             "latency_ms, retrieval_score, created_at, session_id"
         ).execute()
 

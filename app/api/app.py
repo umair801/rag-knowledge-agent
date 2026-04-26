@@ -1,10 +1,13 @@
 """
 FastAPI application factory.
-Configures middleware, CORS, and mounts all routes.
+Serves chat UI at root and mounts all API routes.
 """
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 import structlog
+import os
 
 from app.api.routes import router
 
@@ -12,8 +15,6 @@ logger = structlog.get_logger()
 
 
 def create_app() -> FastAPI:
-    """Create and configure the FastAPI application."""
-
     app = FastAPI(
         title="RAG Knowledge Base Agent",
         description=(
@@ -26,7 +27,6 @@ def create_app() -> FastAPI:
         redoc_url="/redoc",
     )
 
-    # CORS -- allow all origins for SaaS integration
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
@@ -35,7 +35,20 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    # Mount all routes
+    # Serve static files
+    static_dir = os.path.join(os.path.dirname(__file__), "..", "static")
+    static_dir = os.path.abspath(static_dir)
+
+    if os.path.exists(static_dir):
+        app.mount("/static", StaticFiles(directory=static_dir), name="static")
+
+    # Serve chat UI at root
+    @app.get("/", include_in_schema=False)
+    async def root():
+        index_path = os.path.join(static_dir, "index.html")
+        return FileResponse(index_path)
+
+    # Mount API routes
     app.include_router(router, prefix="/api/v1")
 
     @app.on_event("startup")

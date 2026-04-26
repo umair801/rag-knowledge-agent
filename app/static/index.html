@@ -1,0 +1,850 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Knowledge Base AI — datawebify.com</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f7f5f0;
+    --surface: #ffffff;
+    --sidebar: #0f1923;
+    --accent: #00c49a;
+    --accent-dark: #009e7c;
+    --text: #1a1a1a;
+    --muted: #8a9aaa;
+    --border: #e8e4dc;
+    --user-bubble: #0f1923;
+    --ai-bubble: #ffffff;
+    --shadow: 0 4px 24px rgba(0,0,0,0.08);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; overflow: hidden; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    display: flex;
+    height: 100vh;
+  }
+
+  /* SIDEBAR */
+  .sidebar {
+    width: 280px;
+    background: var(--sidebar);
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .sidebar::before {
+    content: '';
+    position: absolute;
+    top: -80px; left: -80px;
+    width: 300px; height: 300px;
+    background: radial-gradient(circle, rgba(0,196,154,0.15), transparent 70%);
+    pointer-events: none;
+  }
+
+  .sidebar-header {
+    padding: 32px 28px 24px;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+
+  .brand {
+    font-family: 'Syne', sans-serif;
+    font-size: 20px;
+    font-weight: 800;
+    color: var(--accent);
+    letter-spacing: -0.5px;
+    margin-bottom: 4px;
+  }
+
+  .brand-sub {
+    font-size: 11px;
+    color: rgba(255,255,255,0.3);
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+  }
+
+  .sidebar-section {
+    padding: 24px 28px;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+
+  .sidebar-label {
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.25);
+    margin-bottom: 16px;
+  }
+
+  .suggestion-btn {
+    display: block;
+    width: 100%;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.07);
+    color: rgba(255,255,255,0.7);
+    padding: 12px 16px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-family: 'DM Sans', sans-serif;
+    text-align: left;
+    cursor: pointer;
+    margin-bottom: 8px;
+    transition: all 0.2s;
+    line-height: 1.4;
+  }
+
+  .suggestion-btn:hover {
+    background: rgba(0,196,154,0.1);
+    border-color: rgba(0,196,154,0.3);
+    color: var(--accent);
+  }
+
+  .sidebar-stats {
+    padding: 24px 28px;
+    margin-top: auto;
+  }
+
+  .stat-row-side {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+  }
+
+  .stat-row-side:last-child { border-bottom: none; }
+
+  .stat-row-side .s-label {
+    font-size: 11px;
+    color: rgba(255,255,255,0.3);
+  }
+
+  .stat-row-side .s-val {
+    font-size: 12px;
+    color: var(--accent);
+    font-weight: 500;
+  }
+
+  .live-dot {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--accent);
+    padding: 28px 28px 0;
+  }
+
+  .live-dot::before {
+    content: '';
+    width: 6px; height: 6px;
+    background: var(--accent);
+    border-radius: 50%;
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(0,196,154,0.4); }
+    50% { opacity: 0.7; box-shadow: 0 0 0 6px rgba(0,196,154,0); }
+  }
+
+  /* MAIN CHAT */
+  .main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--bg);
+  }
+
+  /* TOPBAR */
+  .topbar {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 16px 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+
+  .topbar-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .ai-avatar {
+    width: 36px; height: 36px;
+    background: linear-gradient(135deg, var(--accent), #0099ff);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+  }
+
+  .topbar-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text);
+  }
+
+  .topbar-sub {
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  .topbar-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .tag-pill {
+    background: rgba(0,196,154,0.1);
+    border: 1px solid rgba(0,196,154,0.25);
+    color: var(--accent-dark);
+    padding: 5px 12px;
+    border-radius: 100px;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.3px;
+  }
+
+  /* MESSAGES */
+  .messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+
+  .messages::-webkit-scrollbar { width: 4px; }
+  .messages::-webkit-scrollbar-track { background: transparent; }
+  .messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+  /* WELCOME STATE */
+  .welcome {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    text-align: center;
+    padding: 40px;
+    animation: fadeIn 0.5s ease;
+  }
+
+  .welcome-icon {
+    width: 72px; height: 72px;
+    background: linear-gradient(135deg, rgba(0,196,154,0.15), rgba(0,153,255,0.15));
+    border: 1px solid rgba(0,196,154,0.2);
+    border-radius: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 36px;
+    margin-bottom: 24px;
+  }
+
+  .welcome h2 {
+    font-family: 'Syne', sans-serif;
+    font-size: 28px;
+    font-weight: 800;
+    letter-spacing: -1px;
+    color: var(--text);
+    margin-bottom: 12px;
+  }
+
+  .welcome p {
+    font-size: 14px;
+    color: var(--muted);
+    max-width: 380px;
+    line-height: 1.7;
+    margin-bottom: 32px;
+  }
+
+  .welcome-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: center;
+    max-width: 560px;
+  }
+
+  .chip {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 10px 18px;
+    border-radius: 100px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .chip:hover {
+    border-color: var(--accent);
+    color: var(--accent-dark);
+    background: rgba(0,196,154,0.05);
+  }
+
+  /* MESSAGE BUBBLES */
+  .message {
+    display: flex;
+    gap: 14px;
+    animation: slideUp 0.3s ease;
+    max-width: 780px;
+  }
+
+  @keyframes slideUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .message.user {
+    flex-direction: row-reverse;
+    align-self: flex-end;
+  }
+
+  .msg-avatar {
+    width: 34px; height: 34px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+
+  .message.ai .msg-avatar {
+    background: linear-gradient(135deg, var(--accent), #0099ff);
+  }
+
+  .message.user .msg-avatar {
+    background: var(--user-bubble);
+    color: white;
+    font-size: 13px;
+    font-weight: 700;
+    font-family: 'Syne', sans-serif;
+  }
+
+  .msg-content { flex: 1; }
+
+  .msg-name {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--muted);
+    margin-bottom: 6px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+
+  .message.user .msg-name { text-align: right; }
+
+  .msg-bubble {
+    padding: 16px 20px;
+    border-radius: 16px;
+    font-size: 14px;
+    line-height: 1.7;
+    position: relative;
+  }
+
+  .message.ai .msg-bubble {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-top-left-radius: 4px;
+    color: var(--text);
+    box-shadow: var(--shadow);
+  }
+
+  .message.user .msg-bubble {
+    background: var(--user-bubble);
+    color: white;
+    border-top-right-radius: 4px;
+  }
+
+  /* SOURCES */
+  .sources {
+    margin-top: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .source-label {
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 4px;
+  }
+
+  .source-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: rgba(0,196,154,0.05);
+    border: 1px solid rgba(0,196,154,0.15);
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-size: 12px;
+    color: var(--accent-dark);
+  }
+
+  .source-score {
+    margin-left: auto;
+    background: rgba(0,196,154,0.1);
+    padding: 2px 8px;
+    border-radius: 100px;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--accent-dark);
+    flex-shrink: 0;
+  }
+
+  /* METRICS ROW */
+  .msg-meta {
+    display: flex;
+    gap: 16px;
+    margin-top: 10px;
+    flex-wrap: wrap;
+  }
+
+  .meta-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  .meta-item span { color: var(--accent-dark); font-weight: 500; }
+
+  /* TYPING INDICATOR */
+  .typing-indicator {
+    display: flex;
+    gap: 14px;
+    animation: slideUp 0.3s ease;
+  }
+
+  .typing-bubble {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    border-top-left-radius: 4px;
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    box-shadow: var(--shadow);
+  }
+
+  .typing-dot {
+    width: 7px; height: 7px;
+    background: var(--muted);
+    border-radius: 50%;
+    animation: typingBounce 1.2s infinite;
+  }
+
+  .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+  .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+
+  @keyframes typingBounce {
+    0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+    30% { transform: translateY(-6px); opacity: 1; }
+  }
+
+  /* INPUT AREA */
+  .input-area {
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    padding: 20px 32px 24px;
+    flex-shrink: 0;
+  }
+
+  .input-wrap {
+    display: flex;
+    align-items: flex-end;
+    gap: 12px;
+    background: var(--bg);
+    border: 1.5px solid var(--border);
+    border-radius: 16px;
+    padding: 12px 16px;
+    transition: border-color 0.2s;
+  }
+
+  .input-wrap:focus-within {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(0,196,154,0.08);
+  }
+
+  textarea {
+    flex: 1;
+    border: none;
+    background: transparent;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    color: var(--text);
+    resize: none;
+    outline: none;
+    line-height: 1.6;
+    max-height: 120px;
+    min-height: 24px;
+  }
+
+  textarea::placeholder { color: var(--muted); }
+
+  .send-btn {
+    width: 38px; height: 38px;
+    background: var(--accent);
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: all 0.2s;
+    font-size: 16px;
+  }
+
+  .send-btn:hover {
+    background: var(--accent-dark);
+    transform: scale(1.05);
+  }
+
+  .send-btn:disabled {
+    background: var(--border);
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  .input-hint {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 10px;
+    text-align: center;
+    letter-spacing: 0.3px;
+  }
+
+  /* ERROR */
+  .error-bubble {
+    background: rgba(255,80,80,0.06);
+    border: 1px solid rgba(255,80,80,0.2);
+    border-radius: 12px;
+    padding: 14px 18px;
+    font-size: 13px;
+    color: #cc4444;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  @media (max-width: 680px) {
+    .sidebar { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<div class="sidebar">
+  <div class="sidebar-header">
+    <div class="brand">datawebify</div>
+    <div class="brand-sub">Knowledge Base AI</div>
+  </div>
+
+  <div class="live-dot">Live — rag.datawebify.com</div>
+
+  <div class="sidebar-section" style="margin-top:16px">
+    <div class="sidebar-label">Try asking</div>
+    <button class="suggestion-btn" onclick="askSuggestion(this)">What is retrieval augmented generation?</button>
+    <button class="suggestion-btn" onclick="askSuggestion(this)">How does RAG reduce hallucinations?</button>
+    <button class="suggestion-btn" onclick="askSuggestion(this)">What are the main limitations of RAG?</button>
+    <button class="suggestion-btn" onclick="askSuggestion(this)">How does RAG compare to fine-tuning?</button>
+  </div>
+
+  <div class="sidebar-stats">
+    <div class="sidebar-label">System Status</div>
+    <div class="stat-row-side">
+      <span class="s-label">Response time</span>
+      <span class="s-val">under 3s</span>
+    </div>
+    <div class="stat-row-side">
+      <span class="s-label">Model</span>
+      <span class="s-val">GPT-4o-mini</span>
+    </div>
+    <div class="stat-row-side">
+      <span class="s-label">Vector DB</span>
+      <span class="s-val">Pinecone</span>
+    </div>
+    <div class="stat-row-side">
+      <span class="s-label">Sources cited</span>
+      <span class="s-val">Always</span>
+    </div>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+  <!-- TOPBAR -->
+  <div class="topbar">
+    <div class="topbar-left">
+      <div class="ai-avatar">&#129302;</div>
+      <div>
+        <div class="topbar-title">Knowledge Base Assistant</div>
+        <div class="topbar-sub">Answers from your documents — instantly</div>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <span class="tag-pill">&#9679; Online</span>
+    </div>
+  </div>
+
+  <!-- MESSAGES -->
+  <div class="messages" id="messages">
+    <!-- Welcome State -->
+    <div class="welcome" id="welcome">
+      <div class="welcome-icon">&#128214;</div>
+      <h2>Ask anything</h2>
+      <p>I have instant access to your knowledge base. Ask me anything and I will find the answer with source citations in seconds.</p>
+      <div class="welcome-chips">
+        <div class="chip" onclick="askSuggestion(this)">What is RAG?</div>
+        <div class="chip" onclick="askSuggestion(this)">How does it reduce hallucinations?</div>
+        <div class="chip" onclick="askSuggestion(this)">What are RAG limitations?</div>
+        <div class="chip" onclick="askSuggestion(this)">RAG vs fine-tuning?</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- INPUT -->
+  <div class="input-area">
+    <div class="input-wrap">
+      <textarea
+        id="queryInput"
+        placeholder="Ask a question about your documents..."
+        rows="1"
+        onkeydown="handleKey(event)"
+        oninput="autoResize(this)"
+      ></textarea>
+      <button class="send-btn" id="sendBtn" onclick="sendMessage()" title="Send">
+        &#10148;
+      </button>
+    </div>
+    <div class="input-hint">Powered by GPT-4o-mini + Pinecone &nbsp;&#183;&nbsp; Sources cited on every answer</div>
+  </div>
+</div>
+
+<script>
+  const API_BASE = 'https://rag.datawebify.com/api/v1';
+  let sessionId = null;
+  let isLoading = false;
+
+  // Auto-resize textarea
+  function autoResize(el) {
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+  }
+
+  // Handle Enter key
+  function handleKey(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  }
+
+  // Ask from suggestion buttons / chips
+  function askSuggestion(el) {
+    const text = el.textContent.trim();
+    document.getElementById('queryInput').value = text;
+    sendMessage();
+  }
+
+  // Hide welcome screen on first message
+  function hideWelcome() {
+    const welcome = document.getElementById('welcome');
+    if (welcome) welcome.remove();
+  }
+
+  // Append a message bubble
+  function appendMessage(role, content, sources, latencyMs, score) {
+    hideWelcome();
+    const container = document.getElementById('messages');
+
+    const msg = document.createElement('div');
+    msg.className = `message ${role}`;
+
+    const isAI = role === 'ai';
+    const avatarContent = isAI ? '&#129302;' : 'U';
+
+    // Truncate long source URLs
+    let sourcesHTML = '';
+    if (isAI && sources && sources.length > 0) {
+      const sourceItems = sources.map(s => {
+        const label = s.source_url
+          ? s.source_url.replace('https://', '').substring(0, 55) + (s.source_url.length > 55 ? '...' : '')
+          : s.filename || 'Document';
+        const score = s.score ? (s.score * 100).toFixed(0) + '% match' : '';
+        return `<div class="source-item">
+          &#128196; ${label}
+          ${score ? `<span class="source-score">${score}</span>` : ''}
+        </div>`;
+      }).join('');
+
+      sourcesHTML = `
+        <div class="sources">
+          <div class="source-label">Sources</div>
+          ${sourceItems}
+        </div>`;
+    }
+
+    let metaHTML = '';
+    if (isAI && latencyMs) {
+      metaHTML = `
+        <div class="msg-meta">
+          <div class="meta-item">&#9889; Response time: <span>${latencyMs}ms</span></div>
+          ${score ? `<div class="meta-item">&#127919; Relevance: <span>${(score * 100).toFixed(0)}%</span></div>` : ''}
+        </div>`;
+    }
+
+    msg.innerHTML = `
+      <div class="msg-avatar">${avatarContent}</div>
+      <div class="msg-content">
+        <div class="msg-name">${isAI ? 'Knowledge Assistant' : 'You'}</div>
+        <div class="msg-bubble">${content}</div>
+        ${sourcesHTML}
+        ${metaHTML}
+      </div>`;
+
+    container.appendChild(msg);
+    container.scrollTop = container.scrollHeight;
+  }
+
+  // Show typing indicator
+  function showTyping() {
+    hideWelcome();
+    const container = document.getElementById('messages');
+    const typing = document.createElement('div');
+    typing.className = 'typing-indicator';
+    typing.id = 'typing';
+    typing.innerHTML = `
+      <div class="msg-avatar ai-avatar" style="width:34px;height:34px;background:linear-gradient(135deg,#00c49a,#0099ff);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;margin-top:2px;">&#129302;</div>
+      <div class="typing-bubble">
+        <div class="typing-dot"></div>
+        <div class="typing-dot"></div>
+        <div class="typing-dot"></div>
+      </div>`;
+    container.appendChild(typing);
+    container.scrollTop = container.scrollHeight;
+  }
+
+  function removeTyping() {
+    const typing = document.getElementById('typing');
+    if (typing) typing.remove();
+  }
+
+  // Show error
+  function appendError(message) {
+    const container = document.getElementById('messages');
+    const err = document.createElement('div');
+    err.className = 'message ai';
+    err.innerHTML = `
+      <div class="msg-avatar" style="width:34px;height:34px;background:linear-gradient(135deg,#00c49a,#0099ff);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:16px;">&#129302;</div>
+      <div class="msg-content">
+        <div class="msg-name">Knowledge Assistant</div>
+        <div class="error-bubble">&#9888; ${message}</div>
+      </div>`;
+    container.appendChild(err);
+    container.scrollTop = container.scrollHeight;
+  }
+
+  // Main send function
+  async function sendMessage() {
+    if (isLoading) return;
+
+    const input = document.getElementById('queryInput');
+    const query = input.value.trim();
+    if (!query) return;
+
+    // Reset input
+    input.value = '';
+    input.style.height = 'auto';
+    isLoading = true;
+    document.getElementById('sendBtn').disabled = true;
+
+    // Show user message
+    appendMessage('user', query);
+
+    // Create session if needed
+    if (!sessionId) {
+      try {
+        const res = await fetch(`${API_BASE}/session/new`, { method: 'POST' });
+        const data = await res.json();
+        sessionId = data.session_id;
+      } catch (e) {
+        sessionId = 'demo-' + Date.now();
+      }
+    }
+
+    // Show typing
+    showTyping();
+
+    try {
+      const res = await fetch(`${API_BASE}/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          query: query,
+          top_k: 4,
+          session_id: sessionId,
+        }),
+      });
+
+      removeTyping();
+
+      if (!res.ok) {
+        throw new Error(`API error: ${res.status}`);
+      }
+
+      const data = await res.json();
+
+      appendMessage(
+        'ai',
+        data.answer,
+        data.sources,
+        data.latency_ms,
+        data.retrieval_score
+      );
+
+    } catch (err) {
+      removeTyping();
+      appendError('Could not reach the knowledge base. Please check your connection and try again.');
+      console.error(err);
+    }
+
+    isLoading = false;
+    document.getElementById('sendBtn').disabled = false;
+    input.focus();
+  }
+</script>
+</body>
+</html>

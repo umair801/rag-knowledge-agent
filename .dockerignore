@@ -10,3 +10,6 @@ data/
 *.egg-info/
 .DS_Store
 README.md
+railway.exe
+*.exe
+app/test_connections.py

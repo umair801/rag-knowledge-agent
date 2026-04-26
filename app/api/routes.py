@@ -162,3 +162,26 @@ async def metrics():
     if not stats:
         raise HTTPException(status_code=500, detail="Failed to fetch metrics")
     return stats
+
+
+# ─── Documents List ───────────────────────────────────────────
+@router.get("/documents")
+async def list_documents():
+    """List all ingested documents from Supabase."""
+    try:
+        from supabase import create_client
+        supabase = create_client(
+            os.getenv("SUPABASE_URL"),
+            os.getenv("SUPABASE_KEY"),
+        )
+        result = supabase.table("documents").select(
+            "id, filename, source_type, chunk_count, ingested_at, metadata"
+        ).order("ingested_at", desc=True).execute()
+
+        return {
+            "total_documents": len(result.data),
+            "documents": result.data,
+        }
+    except Exception as e:
+        logger.error("documents_fetch_failed", error=str(e))
+        raise HTTPException(status_code=500, detail=str(e))

@@ -12,11 +12,18 @@ import structlog
 load_dotenv()
 logger = structlog.get_logger()
 
-# Initialize Supabase client once
-_supabase = create_client(
-    os.getenv("SUPABASE_URL"),
-    os.getenv("SUPABASE_KEY"),
-)
+# Lazy client -- initialized on first use
+_supabase = None
+
+def _get_client():
+    global _supabase
+    if _supabase is None:
+        url = os.getenv("SUPABASE_URL")
+        key = os.getenv("SUPABASE_KEY")
+        if not url or not key:
+            raise ValueError("SUPABASE_URL and SUPABASE_KEY must be set")
+        _supabase = create_client(url, key)
+    return _supabase
 
 
 def log_query(

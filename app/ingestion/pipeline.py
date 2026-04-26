@@ -64,7 +64,7 @@ def ingest_document(source: str, category: str = "general") -> IngestResponse:
             os.getenv("SUPABASE_URL"),
             os.getenv("SUPABASE_KEY"),
         )
-        supabase.table("documents").insert({
+        supabase.table("rag_documents").insert({
             "id": document_id,
             "filename": filename,
             "source_type": source_type,

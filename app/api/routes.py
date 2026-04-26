@@ -174,7 +174,7 @@ async def list_documents():
             os.getenv("SUPABASE_URL"),
             os.getenv("SUPABASE_KEY"),
         )
-        result = supabase.table("documents").select(
+        result = supabase.table("rag_documents").select(
             "id, filename, source_type, chunk_count, ingested_at, metadata"
         ).order("ingested_at", desc=True).execute()
 

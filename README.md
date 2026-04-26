@@ -3,7 +3,7 @@
 
 **Live API:** https://rag.datawebify.com/api/v1/health  
 **Interactive Docs:** https://rag.datawebify.com/docs  
-**Portfolio:** datawebify.com/projects/rag_knowledge_agent  
+**Portfolio:** datawebify.com/projects/agai4-rag-knowledge-agent  
 **Part of:** Agentic AI Portfolio — Project 4 of 50
 
 ---
@@ -148,8 +148,8 @@ Business reporting shows queries handled, hours saved, cost per query.
 
 ### 1. Clone the repository
 ```bash
-git clone https://github.com/umair801/rag_knowledge_agent
-cd rag_knowledge_agent
+git clone https://github.com/umair801/rag-knowledge-agent
+cd rag-knowledge-agent
 ```
 
 ### 2. Install dependencies
@@ -188,7 +188,7 @@ curl -X POST https://rag.datawebify.com/api/v1/chat \
 
 ## Project Structure
 ```
-rag_knowledge_agent/
+rag-knowledge-agent/
 ├── app/
 │   ├── ingestion/
 │   │   ├── loaders.py       # PDF, DOCX, URL, TXT loaders

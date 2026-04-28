@@ -1,53 +1,59 @@
-"""
-Core data models for the RAG Knowledge Base Agent.
-All data structures are defined here for consistency across modules.
-"""
-from datetime import datetime
-from typing import Optional
 from pydantic import BaseModel, Field
+from typing import Optional, Dict, Any
 
 
-class DocumentChunk(BaseModel):
-    """A single chunk of text extracted from a document."""
-    chunk_id: str
-    document_id: str
-    filename: str
-    source_type: str  # 'pdf', 'docx', 'url', 'txt'
-    source_url: Optional[str] = None
+# ---------------------------------------------------------------------------
+# Translation Request / Response
+# ---------------------------------------------------------------------------
+
+class TranslationRequest(BaseModel):
+    source_text: str = Field(..., min_length=1, description="Text to translate")
+    target_language: str = Field(..., description="Target language name, e.g. 'French'")
+    source_language: Optional[str] = Field(
+        None, description="Source language name. Auto-detected if not provided."
+    )
+    style: Optional[str] = Field(
+        "literary",
+        description="Translation style: literary | formal | casual"
+    )
+
+
+class TranslationResult(BaseModel):
+    translated_text: str
+    detected_source_language: str
+    token_usage: Dict[str, int]
+    quality_flag: bool = Field(
+        description="True if output length is suspiciously short relative to input"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Chapter / Job Schemas
+# ---------------------------------------------------------------------------
+
+class Chapter(BaseModel):
+    chapter_number: int
+    title: Optional[str] = None
     content: str
-    chunk_index: int
-    total_chunks: int
-    metadata: dict = Field(default_factory=dict)
+    word_count: int
 
 
-class IngestRequest(BaseModel):
-    """Request model for URL ingestion via API."""
-    url: str
-    category: Optional[str] = "general"
+class TranslationJob(BaseModel):
+    job_id: str
+    status: str = Field(description="pending | processing | completed | failed")
+    chapter_count: int = 0
+    completed_chapters: int = 0
+    total_tokens: int = 0
+    target_language: str
+    style: str = "literary"
+    error: Optional[str] = None
 
 
-class IngestResponse(BaseModel):
-    """Response model after document ingestion."""
-    document_id: str
-    filename: str
-    chunks_created: int
+class JobStatusResponse(BaseModel):
+    job_id: str
     status: str
-    ingested_at: datetime = Field(default_factory=datetime.now)
-
-
-class QueryRequest(BaseModel):
-    """Request model for a RAG query."""
-    query: str
-    top_k: int = 5
-    filter_source: Optional[str] = None      # filter by source_type: 'pdf','url','docx','txt'
-    filter_category: Optional[str] = None    # filter by category tag set at ingestion
-    filter_filename: Optional[str] = None    # filter by specific filename
-    session_id: Optional[str] = None
-
-class QueryResponse(BaseModel):
-    """Response model for a RAG query."""
-    answer: str
-    sources: list[dict]
-    retrieval_score: float
-    latency_ms: int
-    session_id: Optional[str] = None
+    chapter_count: int
+    completed_chapters: int
+    total_tokens: int
+    progress_percent: float
+    error: Optional[str] = None

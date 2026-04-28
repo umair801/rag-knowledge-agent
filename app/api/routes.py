@@ -1,187 +1,223 @@
-"""
-FastAPI route definitions.
-Exposes /ingest, /chat, /history, /metrics, and /health endpoints.
-"""
-import os
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException
-from fastapi.responses import JSONResponse
-from typing import Optional
-import shutil
+import uuid
+import threading
+from fastapi import APIRouter, UploadFile, File, HTTPException, Query
+from fastapi.responses import FileResponse
 import tempfile
-import structlog
+import os
 
-from app.ingestion.pipeline import ingest_document
-from app.retrieval.rag_agent import run_query
-from app.retrieval.memory import (
-    create_session,
-    get_history,
-    delete_session,
-    get_session_stats,
-)
-from app.metrics.tracker import get_metrics_summary
 from app.models.schemas import (
-    QueryRequest,
-    QueryResponse,
-    IngestRequest,
-    IngestResponse,
+    TranslationRequest, TranslationResult,
+    TranslationJob, JobStatusResponse
 )
+from app.translation.translator import translate_text, SUPPORTED_LANGUAGES
+from app.translation.splitter import split_into_chapters
+from app.translation.job_store import create_job, get_job, update_job
+from app.ingestion.loaders import load_document
 
-logger = structlog.get_logger()
 router = APIRouter()
 
 
-# ─── Health Check ────────────────────────────────────────────
+# ---------------------------------------------------------------------------
+# Health
+# ---------------------------------------------------------------------------
+
 @router.get("/health")
-async def health_check():
-    """System health check endpoint."""
-    return {
-        "status": "healthy",
-        "service": "RAG Knowledge Base Agent",
-        "version": "1.0.0",
-    }
+def health():
+    return {"status": "ok", "service": "AI-Powered Book Translation Tool"}
 
 
-# ─── Ingest: File Upload ──────────────────────────────────────
-@router.post("/ingest/file", response_model=IngestResponse)
-async def ingest_file(
+# ---------------------------------------------------------------------------
+# Languages
+# ---------------------------------------------------------------------------
+
+@router.get("/api/v1/translate/languages")
+def list_languages():
+    return {"supported_languages": SUPPORTED_LANGUAGES}
+
+
+# ---------------------------------------------------------------------------
+# Translate raw text block
+# ---------------------------------------------------------------------------
+
+@router.post("/api/v1/translate/text", response_model=TranslationResult)
+def translate_text_endpoint(request: TranslationRequest):
+    try:
+        result = translate_text(request)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ---------------------------------------------------------------------------
+# Translate uploaded file (PDF / DOCX / TXT)
+# ---------------------------------------------------------------------------
+
+@router.post("/api/v1/translate/file")
+def translate_file_endpoint(
     file: UploadFile = File(...),
-    category: str = Form(default="general"),
+    target_language: str = Query(..., description="Target language name"),
+    style: str = Query("literary", description="literary | formal | casual"),
 ):
-    """
-    Upload and ingest a document file (PDF, DOCX, TXT).
-    Chunks, embeds, and stores in Pinecone automatically.
-    """
-    allowed_types = {
-        "application/pdf": ".pdf",
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document": ".docx",
-        "text/plain": ".txt",
-    }
-
-    if file.content_type not in allowed_types:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Unsupported file type: {file.content_type}. Allowed: PDF, DOCX, TXT",
-        )
-
-    # Save to temp file for processing
-    suffix = allowed_types[file.content_type]
+    # Save upload to temp file
+    suffix = os.path.splitext(file.filename)[-1].lower()
     with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
-        shutil.copyfileobj(file.file, tmp)
+        tmp.write(file.file.read())
         tmp_path = tmp.name
 
-    try:
-        result = ingest_document(source=tmp_path, category=category)
-        # Use original filename in response
-        result.filename = file.filename
-        logger.info("file_ingested", filename=file.filename, chunks=result.chunks_created)
-        return result
-    except Exception as e:
-        logger.error("file_ingest_failed", filename=file.filename, error=str(e))
-        raise HTTPException(status_code=500, detail=str(e))
-    finally:
-        os.unlink(tmp_path)
+    job_id = str(uuid.uuid4())
+    job = TranslationJob(
+        job_id=job_id,
+        status="pending",
+        target_language=target_language,
+        style=style,
+    )
+    create_job(job)
 
-
-# ─── Ingest: URL ──────────────────────────────────────────────
-@router.post("/ingest/url", response_model=IngestResponse)
-async def ingest_url(request: IngestRequest):
-    """
-    Ingest content from a public URL.
-    Scrapes, chunks, embeds, and stores automatically.
-    """
-    try:
-        result = ingest_document(
-            source=request.url,
-            category=request.category or "general",
-        )
-        logger.info("url_ingested", url=request.url, chunks=result.chunks_created)
-        return result
-    except Exception as e:
-        logger.error("url_ingest_failed", url=request.url, error=str(e))
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-# ─── Chat ─────────────────────────────────────────────────────
-@router.post("/chat", response_model=QueryResponse)
-async def chat(request: QueryRequest):
-    """
-    Submit a question to the RAG knowledge base.
-    Returns a grounded answer with sources and metrics.
-    """
-    if not request.query.strip():
-        raise HTTPException(status_code=400, detail="Query cannot be empty")
-
-    try:
-        response = run_query(request)
-        return response
-    except Exception as e:
-        logger.error("chat_failed", query=request.query[:60], error=str(e))
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-# ─── Session: New ─────────────────────────────────────────────
-@router.post("/session/new")
-async def new_session():
-    """Create a new conversation session."""
-    session_id = create_session()
-    return {"session_id": session_id}
-
-
-# ─── Session: History ─────────────────────────────────────────
-@router.get("/session/{session_id}/history")
-async def session_history(session_id: str):
-    """Retrieve conversation history for a session."""
-    history = get_history(session_id)
-    stats = get_session_stats(session_id)
-
-    if stats is None:
-        raise HTTPException(status_code=404, detail="Session not found or expired")
+    # Run translation in background thread
+    thread = threading.Thread(
+        target=_run_file_translation,
+        args=(job_id, tmp_path, target_language, style),
+        daemon=True,
+    )
+    thread.start()
 
     return {
-        "session_id": session_id,
-        "turn_count": stats["turn_count"],
-        "messages": history,
+        "job_id": job_id,
+        "status": "pending",
+        "message": "Translation started. Poll /api/v1/jobs/{job_id} for progress.",
     }
 
 
-# ─── Session: Delete ──────────────────────────────────────────
-@router.delete("/session/{session_id}")
-async def end_session(session_id: str):
-    """Delete a session and clear its history."""
-    deleted = delete_session(session_id)
-    if not deleted:
-        raise HTTPException(status_code=404, detail="Session not found")
-    return {"status": "deleted", "session_id": session_id}
-
-
-# ─── Metrics ──────────────────────────────────────────────────
-@router.get("/metrics")
-async def metrics():
-    """Return system performance metrics."""
-    stats = get_metrics_summary()
-    if not stats:
-        raise HTTPException(status_code=500, detail="Failed to fetch metrics")
-    return stats
-
-
-# ─── Documents List ───────────────────────────────────────────
-@router.get("/documents")
-async def list_documents():
-    """List all ingested documents from Supabase."""
+def _run_file_translation(job_id: str, file_path: str, target_language: str, style: str):
+    job = get_job(job_id)
     try:
-        from supabase import create_client
-        supabase = create_client(
-            os.getenv("SUPABASE_URL"),
-            os.getenv("SUPABASE_KEY"),
-        )
-        result = supabase.table("rag_documents").select(
-            "id, filename, source_type, chunk_count, ingested_at, metadata"
-        ).order("ingested_at", desc=True).execute()
+        job.status = "processing"
+        update_job(job)
 
-        return {
-            "total_documents": len(result.data),
-            "documents": result.data,
-        }
+        # Extract text (loader returns tuple: text, source_type, metadata)
+        raw_text, _, _ = load_document(file_path)
+
+        # Split into chapters
+        chapters = split_into_chapters(raw_text)
+        job.chapter_count = len(chapters)
+        update_job(job)
+
+        translated_chapters = []
+        total_tokens = 0
+
+        for chapter in chapters:
+            req = TranslationRequest(
+                source_text=chapter.content,
+                target_language=target_language,
+                style=style,
+            )
+            result = translate_text(req)
+            total_tokens += result.token_usage.get("total_tokens", 0)
+            translated_chapters.append({
+                "chapter_number": chapter.chapter_number,
+                "title": chapter.title,
+                "translated_text": result.translated_text,
+            })
+            job.completed_chapters += 1
+            job.total_tokens = total_tokens
+            update_job(job)
+
+        # Build output DOCX
+        output_path = _build_docx(translated_chapters, target_language, job_id)
+
+        job.status = "completed"
+        job.total_tokens = total_tokens
+        # Store output path in error field temporarily (repurposed as output_path)
+        job.error = output_path
+        update_job(job)
+
     except Exception as e:
-        logger.error("documents_fetch_failed", error=str(e))
-        raise HTTPException(status_code=500, detail=str(e))
+        job.status = "failed"
+        job.error = str(e)
+        update_job(job)
+    finally:
+        os.unlink(file_path)
+
+
+def _sanitize(text: str) -> str:
+    """Remove characters that are invalid in XML/DOCX."""
+    import re
+    # Remove NULL bytes and non-XML-compatible control characters
+    # Keep: tab (\x09), newline (\x0A), carriage return (\x0D)
+    text = re.sub(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]', '', text)
+    return text
+
+
+def _build_docx(translated_chapters: list, target_language: str, job_id: str) -> str:
+    from docx import Document
+    doc = Document()
+    doc.add_heading(f"Translated Book — {target_language}", level=0)
+
+    for ch in translated_chapters:
+        title = _sanitize(ch["title"] or f"Chapter {ch['chapter_number']}")
+        doc.add_heading(title, level=1)
+        doc.add_paragraph(_sanitize(ch["translated_text"]))
+        doc.add_page_break()
+
+    output_path = os.path.join(tempfile.gettempdir(), f"translation_{job_id}.docx")
+    doc.save(output_path)
+    return output_path
+
+
+# ---------------------------------------------------------------------------
+# Job status polling
+# ---------------------------------------------------------------------------
+
+@router.get("/api/v1/jobs/{job_id}", response_model=JobStatusResponse)
+def get_job_status(job_id: str):
+    job = get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    progress = 0.0
+    if job.chapter_count > 0:
+        progress = round((job.completed_chapters / job.chapter_count) * 100, 1)
+
+    return JobStatusResponse(
+        job_id=job.job_id,
+        status=job.status,
+        chapter_count=job.chapter_count,
+        completed_chapters=job.completed_chapters,
+        total_tokens=job.total_tokens,
+        progress_percent=progress,
+        error=job.error if job.status == "failed" else None,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Download completed translation
+# ---------------------------------------------------------------------------
+
+@router.get("/api/v1/jobs/{job_id}/download")
+def download_translation(job_id: str):
+    job = get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    if job.status != "completed":
+        raise HTTPException(status_code=400, detail=f"Job is not completed. Status: {job.status}")
+
+    output_path = job.error  # repurposed field storing the output path
+    if not output_path or not os.path.exists(output_path):
+        raise HTTPException(status_code=404, detail="Output file not found")
+
+    return FileResponse(
+        path=output_path,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        filename=f"translation_{job_id}.docx",
+    )
+
+
+# ---------------------------------------------------------------------------
+# All jobs listing
+# ---------------------------------------------------------------------------
+
+@router.get("/api/v1/jobs")
+def list_jobs():
+    from app.translation.job_store import all_jobs
+    jobs = all_jobs()
+    return {"total": len(jobs), "jobs": [j.dict() for j in jobs.values()]}

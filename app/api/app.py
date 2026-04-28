@@ -16,11 +16,11 @@ logger = structlog.get_logger()
 
 def create_app() -> FastAPI:
     app = FastAPI(
-        title="AI-Powered Book Translation Tool",
+        title="RAG Knowledge Base Agent",
         description=(
-            "Production-grade book translation system. "
-            "Upload PDF, DOCX, or TXT files and receive fully translated DOCX output, "
-            "chapter by chapter, powered by GPT-4o across 32 languages."
+            "Enterprise RAG system -- instant answers from your documents. "
+            "Supports PDF, DOCX, TXT, and URL ingestion with semantic search "
+            "and GPT-4o-mini response generation."
         ),
         version="1.0.0",
         docs_url="/docs",
@@ -42,27 +42,22 @@ def create_app() -> FastAPI:
     if os.path.exists(static_dir):
         app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
-    # Serve translation UI at root
+    # Serve chat UI at root
     @app.get("/", include_in_schema=False)
     async def root():
         index_path = os.path.join(static_dir, "index.html")
         return FileResponse(index_path)
 
-    # Health check at root level (no prefix)
-    @app.get("/health")
-    async def health():
-        return {"status": "ok", "service": "AI-Powered Book Translation Tool"}
-
-    # Mount API routes (routes already carry /api/v1 prefix internally)
-    app.include_router(router)
+    # Mount API routes
+    app.include_router(router, prefix="/api/v1")
 
     @app.on_event("startup")
     async def startup():
-        logger.info("translation_api_started", version="1.0.0")
+        logger.info("rag_api_started", version="1.0.0")
 
     @app.on_event("shutdown")
     async def shutdown():
-        logger.info("translation_api_stopped")
+        logger.info("rag_api_stopped")
 
     return app
 

@@ -1,35 +1,11 @@
-# Virtual environment
 venv/
-.venv/
-
-# Environment variables
-.env
-
-# Python cache
 __pycache__/
-*.py[cod]
-*.pyo
-.pytest_cache/
-
-# Test PDFs
-tests/*.pdf
-tests/*.docx
-
-# Temporary translated output files
-*.docx
-translation_*.docx
-
-# OS files
-.DS_Store
-Thumbs.db
-
-# IDE
-.vscode/
-.idea/
-
-# Logs
-*.log
+*.pyc
+.env
 logs/
-
-# Docker
-*.tar
+data/
+*.egg-info/
+.DS_Store
+railway.exe
+*.exe
+app/test_connections.py
